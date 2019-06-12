@@ -1,0 +1,98 @@
+var https = require("https");
+var url = require("url");
+
+var repos = {};
+repos["actionscript"] = "ActionScriptSDK";
+repos["cpp-cocos2dx"] = "Cocos2d-xSDK";
+repos["cpp-ue4"] = "_Unknown_";
+repos["cpp-unreal"] = "_Unknown_";
+repos["csharp"] = "CSharpSDK";
+repos["csharp-flat"] = "";
+repos["csharp-unity-gameserver"] = "PlayFabGameServer";
+repos["java"] = "JavaSDK";
+repos["javascript"] = "JavaScriptSDK";
+repos["js-node"] = "NodeSDK";
+repos["LuaSdk"] = "LuaSdk";
+repos["LumberyardSdk"] = "LumberyardSDK";
+repos["newTarget"] = "NewTarget";
+repos["objc"] = "Objective_C_SDK";
+repos["PhpSdk"] = "PhpSdk";
+repos["postman"] = "PostmanCollection";
+repos["PythonSdk"] = "PythonSdk";
+repos["SdkTestingCloudScript"] = "SdkTestingCloudScript";
+repos["unity-v2"] = "UnitySDK;UnityBeta";
+repos["UnrealMarketplacePlugin"] = "UnrealMarketplacePlugin";
+repos["WindowsSdk"] = "WindowsSdk";
+repos["XPlatCppSdk"] = "XPlatCppSdk;XPlatBetaSdk";
+repos[""] = "_Unknown_";
+var affectedRepos = {};
+
+function downloadFromUrl(gitRepo, gitPullId, onComplete, optional) {  
+    var options = {
+        host: "api.github.com",
+        port: 443,
+        path: "/repos/" + gitRepo + "/pulls/" + gitPullId + "/files",
+        method: 'GET',
+        headers: {
+          'User-Agent': 'PlayFab'
+        }
+    };
+
+    var fullUrl = "https://" + options.host + ":" + options.port + options.path;
+    console.log("Begin reading URL: " + fullUrl);
+    var rawResponse = "";
+    var parsedResponse = null;
+    https.get(options, function (request) {
+        request.setEncoding("utf8");
+        request.on("data", function (chunk) { rawResponse += chunk; });
+        request.on("end", function () {
+            console.log("Finished reading: " + fullUrl);
+            try {
+                parsedResponse = JSON.parse(rawResponse);
+            }
+            catch (jsonErr) {
+                console.log(" ***** Failed to parse json: " + rawResponse.trim());
+                console.log(" ***** Failed to Load: " + fullUrl);
+                if (!optional)
+                    throw jsonErr;
+            }
+            onComplete(parsedResponse);
+        });
+        request.on("error", function (reqErr) {
+            console.log(" ***** Request failed on: " + fullUrl);
+            console.log(reqErr);
+            if (!optional)
+                throw reqErr;
+        });
+    });
+}
+
+function downloadComplete(content) {
+    var regex = new RegExp("(?<=targets\/).*?(?=\/)", "i"); // get <string> from paths like: targets/<string>/...
+    var match;
+    console.log("Matching repos:");
+    content.forEach(element => {
+        match = regex.exec(element.filename);
+        if (match && repos[match]) {
+            affectedRepos[match] = repos[match];
+            //console.log(element.filename + ": " + repos[match]);
+        } else {
+            affectedRepos[""] = repos[""]; // Unknown or non-repo
+            //console.log(element.filename + ": " + repos[""]);
+        }
+    });
+
+    var result = "";
+    for (var key in affectedRepos) {
+        if (result === "") {
+            result = affectedRepos[key];
+        } else {
+            result = result + ";" + affectedRepos[key];
+        }
+    };
+
+    console.log(result);
+}
+
+//downloadFromUrl("PlayFab/SDKTriggerFilterTest", 1, complete);
+downloadFromUrl("PlayFab/SDKGenerator", 395, downloadComplete);
